@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#f7f7f4" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-title" content="尽调表" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <title>高风险客户尽调表生成器</title>
+  <link rel="manifest" href="./manifest.webmanifest" />
+  <link rel="apple-touch-icon" href="./icons/icon-192.png" />
+  <link rel="icon" href="./icons/icon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="./styles.css?v=5" />
+  <script src="./app.js?v=7" defer></script>
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div>
+        <h1>高风险客户尽调表</h1>
+        <p id="saveState">已保存</p>
+      </div>
+      <button class="icon-button" type="button" id="topDownloadButton" aria-label="保存图片" title="保存图片">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M12 3v12m0 0 4-4m-4 4-4-4M5 21h14" />
+        </svg>
+      </button>
+    </header>
+
+    <main class="layout">
+      <form id="reportForm" class="form-stack" autocomplete="on">
+        <section>
+          <h2>机构信息</h2>
+          <div class="grid two">
+            <label>所属分中心<input name="branch" value="广州" /></label>
+            <label>所属城市<input name="city" value="广州" /></label>
+            <label class="span">所属团队<input name="team" value="海珠团队" /></label>
+          </div>
+        </section>
+
+        <section>
+          <h2>客户信息</h2>
+          <div class="grid two">
+            <label>客户姓名<input name="customerName" /></label>
+            <label>客户性别
+              <select name="gender">
+                <option value=""></option>
+                <option>男</option>
+                <option>女</option>
+              </select>
+            </label>
+            <label class="span">身份证号码<input name="idNumber" inputmode="text" /></label>
+            <label class="span">客户工作单位<input name="workUnit" /></label>
+            <label class="span">客户居住地址<textarea name="homeAddress"></textarea></label>
+            <label class="span">自雇公司<input name="selfCompany" placeholder="无" /></label>
+            <label>购车城市<input name="buyCity" value="广州" /></label>
+            <label>客户电话<input name="phone" inputmode="tel" /></label>
+          </div>
+        </section>
+
+        <section>
+          <h2>贷款信息</h2>
+          <div class="grid two">
+            <label>进件时间<input name="submitDate" type="date" /></label>
+            <label>获客来源<input name="source" value="销售推荐" /></label>
+            <label class="span">意向品牌及车型<input name="carModel" /></label>
+            <label>拟贷款成数<input name="loanPercent" inputmode="decimal" placeholder="例：70" /></label>
+            <label>贷款金额（万）<input name="loanAmount" inputmode="decimal" /></label>
+            <label>主要收入来源
+              <select name="incomeSource">
+                <option>工资收入</option>
+                <option>经营收入</option>
+                <option>租金收入</option>
+                <option>其他资产性收入</option>
+              </select>
+            </label>
+            <label>年收入情况<input name="incomeRange" value="12-15万" /></label>
+            <label class="span">其他情况说明<textarea name="otherNotes"></textarea></label>
+          </div>
+        </section>
+
+        <section>
+          <h2>核实情况</h2>
+          <div class="check-list">
+            <label><input type="checkbox" name="fraudWarn" checked />已进行骗贷提醒</label>
+            <label><input type="checkbox" name="agentRisk" />存在代购风险</label>
+            <label><input type="checkbox" name="addressOk" checked />工作地址、居住地址无异常</label>
+          </div>
+        </section>
+
+        <section>
+          <h2>首付与签字</h2>
+          <div class="grid two">
+            <label>首付款支付方式
+              <select name="payMethod">
+                <option>本人转账支付</option>
+                <option>本人现金支付</option>
+                <option>他人代付</option>
+              </select>
+            </label>
+            <label>代付关系
+              <select name="payerRelation">
+                <option value=""></option>
+                <option>直系亲属</option>
+                <option>朋友</option>
+                <option>其他</option>
+              </select>
+            </label>
+            <label>客户经理签字<input name="managerName" placeholder="未手写时，用姓名生成签字" /></label>
+            <label>主管签字<input name="supervisorName" /></label>
+            <label class="span">亲见日期<input name="visitDate" type="date" /></label>
+            <div class="signature-box span">
+              <div class="signature-head">
+                <span>手写客户经理签字</span>
+                <small id="signatureState">未保存手写签字</small>
+              </div>
+              <canvas id="managerSignaturePad" width="720" height="220" aria-label="手写客户经理签字"></canvas>
+              <div class="signature-actions">
+                <button type="button" class="secondary" id="saveSignatureButton">
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2Z" />
+                    <path d="M17 21v-8H7v8M7 3v5h8" />
+                  </svg>
+                  保存签名
+                </button>
+                <button type="button" class="secondary" id="clearSignatureButton">
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6M10 11v6M14 11v6" />
+                  </svg>
+                  清除签名
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="actions">
+          <button type="button" id="renderButton">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M21 12a9 9 0 1 1-3-6.7M21 3v6h-6" />
+            </svg>
+            生成图片
+          </button>
+          <a id="downloadLink" download="高风险客户尽职调查表.png">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 3v12m0 0 4-4m-4 4-4-4M5 21h14" />
+            </svg>
+            下载PNG
+          </a>
+          <button type="button" id="shareButton" class="secondary">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M4 12v7a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-7M16 6l-4-4-4 4M12 2v14" />
+            </svg>
+            分享图片
+          </button>
+          <button type="button" id="clearButton" class="secondary">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6M10 11v6M14 11v6" />
+            </svg>
+            清空
+          </button>
+        </section>
+      </form>
+
+      <section class="preview">
+        <img id="previewImage" alt="生成图片预览" />
+      </section>
+    </main>
+  </div>
+
+  <canvas id="reportCanvas" width="1588" height="2246"></canvas>
+</body>
+</html>
