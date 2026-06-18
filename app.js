@@ -13,6 +13,10 @@ const signatureCtx = signaturePad.getContext("2d");
 const signatureState = document.getElementById("signatureState");
 const saveSignatureButton = document.getElementById("saveSignatureButton");
 const clearSignatureButton = document.getElementById("clearSignatureButton");
+const signatureToggleButton = document.getElementById("signatureToggleButton");
+const signatureBox = document.querySelector(".signature-box");
+const pages = Array.from(document.querySelectorAll(".form-page"));
+const navButtons = Array.from(document.querySelectorAll(".nav-button"));
 const storageKey = "high-risk-dd-pwa-v2";
 const signatureStorageKey = "high-risk-dd-manager-signature-v1";
 
@@ -31,7 +35,7 @@ const fieldNames = [
   "homeAddress", "selfCompany", "buyCity", "phone", "submitDate", "source",
   "carModel", "loanPercent", "loanAmount", "incomeSource", "incomeRange",
   "otherNotes", "fraudWarn", "agentRisk", "addressOk", "payMethod",
-  "payerRelation", "managerName", "supervisorName", "visitDate"
+  "payerRelation", "visitDate"
 ];
 
 let renderTimer = null;
@@ -39,6 +43,7 @@ let lastBlob = null;
 let hasSavedManagerSignature = false;
 let hasSignatureDraft = false;
 let signatureLocked = false;
+let signatureCollapsed = false;
 let isDrawingSignature = false;
 let lastSignaturePoint = null;
 let lastPointerEventAt = 0;
@@ -190,17 +195,31 @@ function drawWrapped(text, x, y, maxWidth, lineHeight, options = {}) {
   return Math.min(lines.length, maxLines) * lineHeight;
 }
 
+function measureCellText(text, w, options = {}) {
+  const size = options.size || 15;
+  const maxLines = options.maxLines || Infinity;
+  const lineHeight = options.lineHeight || 20;
+  const lines = wrapText(text, w - 12, size);
+  const count = Math.min(lines.length, maxLines);
+  return {
+    lines,
+    count,
+    lineHeight,
+    height: Math.max(1, count) * lineHeight + 14
+  };
+}
+
 function cellText(text, x, y, w, h, options = {}) {
   const size = options.size || 15;
   const align = options.align || "center";
-  const maxLines = options.maxLines || 2;
-  const lines = wrapText(text, w - 12, size);
-  const count = Math.min(lines.length, maxLines);
+  const measured = measureCellText(text, w, options);
+  const lines = measured.lines;
+  const count = measured.count;
   setFont(size, options.weight || "400", options.family || textFont);
   ctx.fillStyle = "#111";
   ctx.textAlign = align;
   ctx.textBaseline = "middle";
-  const lineHeight = options.lineHeight || 20;
+  const lineHeight = measured.lineHeight;
   const startY = y + h / 2 - ((count - 1) * lineHeight) / 2;
   const textX = align === "left" ? x + 8 : x + w / 2;
   for (let i = 0; i < count; i += 1) {
@@ -300,6 +319,13 @@ function updateSignatureUi() {
   saveSignatureButton.disabled = signatureLocked || !hasSignatureDraft;
 }
 
+function setSignatureCollapsed(collapsed) {
+  signatureCollapsed = collapsed;
+  signatureBox.classList.toggle("is-collapsed", signatureCollapsed);
+  signatureToggleButton.textContent = signatureCollapsed ? "展开" : "收起";
+  signatureToggleButton.setAttribute("aria-expanded", String(!signatureCollapsed));
+}
+
 function saveManagerSignature() {
   if (!hasSignatureDraft) return;
   localStorage.setItem(signatureStorageKey, signaturePad.toDataURL("image/png"));
@@ -385,14 +411,7 @@ function drawTable(d) {
   const x0 = 77;
   const y0 = 200;
   const xs = [77, 265, 398, 588, 718];
-  const ys = [200, 250, 286, 317, 348, 379, 409, 959];
-
-  drawLine(x0, y0, 718, y0);
-  drawLine(x0, 959, 718, 959);
-  drawLine(x0, y0, x0, 959);
-  drawLine(718, y0, 718, 959);
-  for (let i = 1; i < ys.length - 1; i += 1) drawLine(x0, ys[i], 718, ys[i]);
-  for (let i = 1; i < xs.length - 1; i += 1) drawLine(xs[i], y0, xs[i], ys[6]);
+  const baseRowHeights = [50, 36, 31, 31, 31, 30];
 
   const rows = [
     ["客户 姓名", d.customerName, "客户身份证号码", d.idNumber],
@@ -403,9 +422,38 @@ function drawTable(d) {
     ["客户意向品牌及车型", d.carModel, "拟贷款成数及贷款金额", formatLoanAmount(d.loanPercent, d.loanAmount)]
   ];
 
+  const rowHeights = rows.map((row, rowIndex) => {
+    let rowHeight = baseRowHeights[rowIndex];
+    for (let colIndex = 0; colIndex < 4; colIndex += 1) {
+      const cellW = xs[colIndex + 1] - xs[colIndex];
+      const isIdValue = rowIndex === 0 && colIndex === 3;
+      const measured = measureCellText(row[colIndex], cellW, {
+        size: isIdValue ? 14 : 15,
+        lineHeight: isIdValue ? 17 : 20
+      });
+      rowHeight = Math.max(rowHeight, measured.height);
+    }
+    return rowHeight;
+  });
+
+  const ys = [y0];
+  for (const rowHeight of rowHeights) {
+    ys.push(ys[ys.length - 1] + rowHeight);
+  }
+
+  const detailTop = ys[ys.length - 1];
+  const tableBottom = Math.max(959, detailTop + 520);
+
+  drawLine(x0, y0, 718, y0);
+  drawLine(x0, tableBottom, 718, tableBottom);
+  drawLine(x0, y0, x0, tableBottom);
+  drawLine(718, y0, 718, tableBottom);
+  for (let i = 1; i < ys.length; i += 1) drawLine(x0, ys[i], 718, ys[i]);
+  for (let i = 1; i < xs.length - 1; i += 1) drawLine(xs[i], y0, xs[i], detailTop);
+
   for (let r = 0; r < rows.length; r += 1) {
     const rowY = ys[r];
-    const rowH = ys[r + 1] - ys[r];
+    const rowH = rowHeights[r];
     for (let c = 0; c < 4; c += 1) {
       const cellX = xs[c];
       const cellW = xs[c + 1] - xs[c];
@@ -415,14 +463,14 @@ function drawTable(d) {
         align: isValue ? "left" : "center",
         size: isIdValue ? 14 : 15,
         lineHeight: isIdValue ? 17 : 20,
-        maxLines: isIdValue || (r === 2 && isValue) ? 2 : 1
+        maxLines: Infinity
       });
     }
   }
 
   const lineX = 84;
   const lineW = 624;
-  let y = 415;
+  let y = detailTop + 10;
   const income = [
     optionMark(d.incomeSource === "工资收入", "工资收入"),
     optionMark(d.incomeSource === "经营收入", "经营收入"),
@@ -458,13 +506,12 @@ function drawTable(d) {
     drawWrapped(d.otherNotes, lineX + 24, y - 8, lineW - 24, 24, { size: 14.5, maxLines: 3 });
   }
 
-  drawText("客户经理签字：", 414, 780, { size: 15 });
-  if (!drawManagerSignatureFromPad(525, 728, 168, 92)) {
-    drawHandSignature(d.managerName, 525, 728, 168, 92);
-  }
-  drawText("主管签字：", 447, 854, { size: 15 });
-  drawHandSignature(d.supervisorName, 525, 810, 168, 80);
-  drawText(`亲见日期：${formatDate(d.visitDate)}`, 454, 949, { size: 15 });
+  const managerSignY = tableBottom - 179;
+  const supervisorSignY = tableBottom - 105;
+  drawText("客户经理签字：", 414, managerSignY + 52, { size: 15 });
+  drawManagerSignatureFromPad(525, managerSignY, 168, 92);
+  drawText("主管签字：", 447, supervisorSignY + 44, { size: 15 });
+  drawText(`亲见日期：${formatDate(d.visitDate)}`, 454, tableBottom - 10, { size: 15 });
 }
 
 function drawReport() {
@@ -603,6 +650,25 @@ async function saveImageToDevice() {
   triggerDownload(file);
 }
 
+function showPage(pageName) {
+  for (const page of pages) {
+    page.classList.toggle("active", page.dataset.page === pageName);
+  }
+
+  for (const button of navButtons) {
+    const active = button.dataset.targetPage === pageName;
+    button.classList.toggle("active", active);
+    if (active) {
+      button.setAttribute("aria-current", "page");
+    } else {
+      button.removeAttribute("aria-current");
+    }
+  }
+
+  window.scrollTo(0, 0);
+  if (pageName === "done") drawReport();
+}
+
 document.getElementById("renderButton").addEventListener("click", () => {
   saveData();
   drawReport();
@@ -615,6 +681,9 @@ downloadLink.addEventListener("click", (event) => {
   saveImageToDevice();
 });
 shareButton.addEventListener("click", shareImage);
+for (const button of navButtons) {
+  button.addEventListener("click", () => showPage(button.dataset.targetPage));
+}
 form.addEventListener("input", scheduleRender);
 form.addEventListener("change", scheduleRender);
 
@@ -668,6 +737,9 @@ signaturePad.addEventListener("touchend", (event) => {
 }, { passive: false });
 
 saveSignatureButton.addEventListener("click", saveManagerSignature);
+signatureToggleButton.addEventListener("click", () => {
+  setSignatureCollapsed(!signatureCollapsed);
+});
 
 clearSignatureButton.addEventListener("click", () => {
   if (!window.confirm("确定清除已保存的手写签名吗？清除后需要重新手写并保存。")) return;
@@ -688,6 +760,7 @@ if ("serviceWorker" in navigator) {
 
 setupSignatureCanvas();
 updateSignatureUi();
+setSignatureCollapsed(false);
 loadData();
 loadManagerSignature();
 saveData();
