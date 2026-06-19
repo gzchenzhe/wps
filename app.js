@@ -7,7 +7,6 @@ const previewImage = document.getElementById("previewImage");
 const downloadLink = document.getElementById("downloadLink");
 const saveState = document.getElementById("saveState");
 const topDownloadButton = document.getElementById("topDownloadButton");
-const shareButton = document.getElementById("shareButton");
 const signaturePad = document.getElementById("managerSignaturePad");
 const signatureCtx = signaturePad.getContext("2d");
 const signatureState = document.getElementById("signatureState");
@@ -15,6 +14,8 @@ const saveSignatureButton = document.getElementById("saveSignatureButton");
 const clearSignatureButton = document.getElementById("clearSignatureButton");
 const signatureToggleButton = document.getElementById("signatureToggleButton");
 const signatureBox = document.querySelector(".signature-box");
+const employmentOptions = Array.from(form.querySelectorAll("[data-employment-option]"));
+const dateInputs = Array.from(form.querySelectorAll(".date-picker"));
 const pages = Array.from(document.querySelectorAll(".form-page"));
 const navButtons = Array.from(document.querySelectorAll(".nav-button"));
 const storageKey = "high-risk-dd-pwa-v2";
@@ -31,10 +32,11 @@ const uiFont = '"Microsoft YaHei", "PingFang SC", sans-serif';
 const handFont = '"STXingkai", "华文行楷", "Xingkai SC", "Kaiti SC", "KaiTi", cursive';
 
 const fieldNames = [
-  "branch", "city", "team", "customerName", "gender", "idNumber", "workUnit",
-  "homeAddress", "selfCompany", "buyCity", "phone", "submitDate", "source",
+  "branch", "city", "team", "customerName", "gender", "idNumber", "workUnitSelected",
+  "selfCompanySelected",
+  "employmentAddress", "homeAddress", "buyCity", "phone", "submitDate", "source",
   "carModel", "loanPercent", "loanAmount", "incomeSource", "incomeRange",
-  "otherNotes", "fraudWarn", "agentRisk", "addressOk", "payMethod",
+  "otherNotes", "fraudWarn", "addressOk", "payMethod",
   "payerRelation", "visitDate"
 ];
 
@@ -64,6 +66,7 @@ function getData() {
   const data = {};
   for (const name of fieldNames) {
     const el = getField(name);
+    if (!el) continue;
     data[name] = el.type === "checkbox" ? el.checked : el.value.trim();
   }
   return data;
@@ -92,6 +95,9 @@ function ensureDefaults() {
   if (!getField("incomeRange").value) getField("incomeRange").value = "12-15万";
   if (!getField("incomeSource").value) getField("incomeSource").value = "工资收入";
   if (!getField("payMethod").value) getField("payMethod").value = "本人转账支付";
+  if (!getField("workUnitSelected").checked && !getField("selfCompanySelected").checked) {
+    getField("workUnitSelected").checked = true;
+  }
 }
 
 function saveData() {
@@ -103,12 +109,22 @@ function loadData() {
   const raw = localStorage.getItem(storageKey);
   if (raw) {
     try {
-      setData(JSON.parse(raw));
+      const saved = JSON.parse(raw);
+      if (saved.workUnitSelected === undefined && saved.selfCompanySelected === undefined) {
+        const selectedType = saved.employmentType || (saved.selfCompany ? "selfCompany" : "workUnit");
+        saved.workUnitSelected = selectedType !== "selfCompany";
+        saved.selfCompanySelected = selectedType === "selfCompany";
+      }
+      if (saved.employmentAddress === undefined) {
+        saved.employmentAddress = saved.selfCompany || saved.workUnit || "";
+      }
+      setData(saved);
     } catch {
       localStorage.removeItem(storageKey);
     }
   }
   ensureDefaults();
+  syncDateDisplays();
 }
 
 function fileSafeName(name) {
@@ -121,6 +137,15 @@ function formatDate(value) {
   const parts = value.split("-");
   if (parts.length !== 3) return value;
   return `${parts[0]}年${Number(parts[1])}月${Number(parts[2])}日`;
+}
+
+function syncDateDisplay(input) {
+  const display = document.getElementById(input.dataset.dateDisplay);
+  if (display) display.value = input.value ? formatDate(input.value) : "";
+}
+
+function syncDateDisplays() {
+  for (const input of dateInputs) syncDateDisplay(input);
 }
 
 function formatLoanAmount(percent, amount) {
@@ -415,8 +440,8 @@ function drawTable(d) {
 
   const rows = [
     ["客户 姓名", d.customerName, "客户身份证号码", d.idNumber],
-    ["客户 性别", d.gender, "客户工作单位", d.workUnit],
-    ["客户居住地址", d.homeAddress, "自雇公司（如有）", d.selfCompany || ""],
+    ["客户 性别", d.gender, "客户工作单位", d.workUnitSelected ? d.employmentAddress : ""],
+    ["客户居住地址", d.homeAddress, "自雇公司（如有）", d.selfCompanySelected ? d.employmentAddress : ""],
     ["客户购车城市", d.buyCity, "客户电话", d.phone],
     ["进件时间", formatDate(d.submitDate), "获客来源", d.source],
     ["客户意向品牌及车型", d.carModel, "拟贷款成数及贷款金额", formatLoanAmount(d.loanPercent, d.loanAmount)]
@@ -490,15 +515,14 @@ function drawTable(d) {
 
   const items = [
     `1、是否对客户进行骗贷提醒 （${optionMark(d.fraudWarn, "是")}、${optionMark(!d.fraudWarn, "否")}）`,
-    `2、是否有代购风险（${optionMark(d.agentRisk, "是")}、${optionMark(!d.agentRisk, "否")}）`,
-    `3、已核实客户工作地址、居住地址无异常（${optionMark(d.addressOk, "是")}、${optionMark(!d.addressOk, "否")}）`,
-    `4.①客户主要收入来源（${income}）；②客户年收入情况：${d.incomeRange || ""}`,
-    `5、首付款支付方式：（${pay}；如为他人代付，请补充主贷人与代付人的关系：${relation}______）`,
-    `6、其他情况说明（客户购车用途、异地购车原因等）`
+    `2、已核实客户工作地址、居住地址无异常（${optionMark(d.addressOk, "是")}、${optionMark(!d.addressOk, "否")}）`,
+    `3.①客户主要收入来源（${income}）；②客户年收入情况：${d.incomeRange || ""}`,
+    `4、首付款支付方式：（${pay}；如为他人代付，请补充主贷人与代付人的关系：${relation}______）`,
+    `5、其他情况说明（客户购车用途、异地购车原因等）`
   ];
 
   for (const item of items) {
-    const used = drawWrapped(item, lineX, y, lineW, 25, { size: 14.5, maxLines: item.startsWith("4.") || item.startsWith("5") ? 2 : 1 });
+    const used = drawWrapped(item, lineX, y, lineW, 25, { size: 14.5, maxLines: item.startsWith("3.") || item.startsWith("4") ? 2 : 1 });
     y += Math.max(38, used + 20);
   }
 
@@ -572,11 +596,13 @@ function clearCustomerData() {
     incomeSource: "工资收入",
     incomeRange: "12-15万",
     fraudWarn: true,
-    agentRisk: false,
     addressOk: true,
     payMethod: "本人转账支付",
+    workUnitSelected: true,
+    selfCompanySelected: false,
     visitDate: todayValue()
   });
+  syncDateDisplays();
   saveData();
   drawReport();
 }
@@ -602,31 +628,6 @@ function triggerDownload(file) {
   link.click();
   link.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1200);
-}
-
-async function shareImage() {
-  const file = await getCurrentImageFile();
-  if (!file) return;
-
-  if (navigator.canShare && !navigator.canShare({ files: [file] })) {
-    triggerDownload(file);
-    return;
-  }
-
-  if (!navigator.share) {
-    triggerDownload(file);
-    return;
-  }
-
-  try {
-    await navigator.share({
-      files: [file],
-      title: "高风险客户尽职调查表"
-    });
-  } catch (error) {
-    if (error?.name !== "AbortError") triggerDownload(file);
-    saveState.textContent = "已生成";
-  }
 }
 
 async function saveImageToDevice() {
@@ -669,21 +670,33 @@ function showPage(pageName) {
   if (pageName === "done") drawReport();
 }
 
-document.getElementById("renderButton").addEventListener("click", () => {
-  saveData();
-  drawReport();
-});
-
 document.getElementById("clearButton").addEventListener("click", clearCustomerData);
 topDownloadButton.addEventListener("click", saveImageToDevice);
 downloadLink.addEventListener("click", (event) => {
   event.preventDefault();
   saveImageToDevice();
 });
-shareButton.addEventListener("click", shareImage);
 for (const button of navButtons) {
   button.addEventListener("click", () => showPage(button.dataset.targetPage));
 }
+
+for (const option of employmentOptions) {
+  option.addEventListener("change", () => {
+    if (!option.checked) {
+      option.checked = true;
+      return;
+    }
+    for (const otherOption of employmentOptions) {
+      if (otherOption !== option) otherOption.checked = false;
+    }
+  });
+}
+
+for (const input of dateInputs) {
+  input.addEventListener("input", () => syncDateDisplay(input));
+  input.addEventListener("change", () => syncDateDisplay(input));
+}
+
 form.addEventListener("input", scheduleRender);
 form.addEventListener("change", scheduleRender);
 
@@ -760,7 +773,7 @@ if ("serviceWorker" in navigator) {
 
 setupSignatureCanvas();
 updateSignatureUi();
-setSignatureCollapsed(false);
+setSignatureCollapsed(true);
 loadData();
 loadManagerSignature();
 saveData();

@@ -1,9 +1,9 @@
-const CACHE_NAME = "high-risk-dd-pwa-v11";
+const CACHE_NAME = "high-risk-dd-pwa-v15";
 const ASSETS = [
   "./",
   "./index.html",
-  "./styles.css?v=8",
-  "./app.js?v=9",
+  "./styles.css?v=11",
+  "./app.js?v=12",
   "./manifest.webmanifest",
   "./icons/icon.svg",
   "./icons/icon-192.png",
