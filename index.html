@@ -11,8 +11,8 @@
   <link rel="manifest" href="./manifest.webmanifest" />
   <link rel="apple-touch-icon" href="./icons/icon-192.png" />
   <link rel="icon" href="./icons/icon.svg" type="image/svg+xml" />
-  <link rel="stylesheet" href="./styles.css?v=12" />
-  <script src="./app.js?v=12" defer></script>
+  <link rel="stylesheet" href="./styles.css?v=13" />
+  <script src="./app.js?v=13" defer></script>
 </head>
 <body>
   <div class="app-shell">
@@ -21,11 +21,21 @@
         <h1>高风险客户尽调表</h1>
         <p id="saveState">已保存</p>
       </div>
-      <button class="icon-button" type="button" id="topDownloadButton" aria-label="保存图片" title="保存图片">
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <path d="M12 3v12m0 0 4-4m-4 4-4-4M5 21h14" />
-        </svg>
-      </button>
+      <div class="topbar-actions">
+        <button class="icon-button" type="button" id="idCardOcrButton" aria-label="识别身份证" title="识别身份证">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <rect x="3" y="5" width="18" height="14" rx="2" />
+            <circle cx="8" cy="11" r="2" />
+            <path d="M6 16c.6-1.6 1.7-2.4 3.2-2.4s2.6.8 3.2 2.4M14 10h4M14 14h4" />
+          </svg>
+        </button>
+        <button class="icon-button" type="button" id="topDownloadButton" aria-label="保存图片" title="保存图片">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M12 3v12m0 0 4-4m-4 4-4-4M5 21h14" />
+          </svg>
+        </button>
+      </div>
+      <input id="idCardImageInput" type="file" accept="image/jpeg,image/png,image/bmp" capture="environment" hidden />
     </header>
 
     <main class="layout">

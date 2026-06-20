@@ -7,6 +7,8 @@ const previewImage = document.getElementById("previewImage");
 const downloadLink = document.getElementById("downloadLink");
 const saveState = document.getElementById("saveState");
 const topDownloadButton = document.getElementById("topDownloadButton");
+const idCardOcrButton = document.getElementById("idCardOcrButton");
+const idCardImageInput = document.getElementById("idCardImageInput");
 const signaturePad = document.getElementById("managerSignaturePad");
 const signatureCtx = signaturePad.getContext("2d");
 const signatureState = document.getElementById("signatureState");
@@ -20,6 +22,8 @@ const pages = Array.from(document.querySelectorAll(".form-page"));
 const navButtons = Array.from(document.querySelectorAll(".nav-button"));
 const storageKey = "high-risk-dd-pwa-v2";
 const signatureStorageKey = "high-risk-dd-manager-signature-v1";
+const ocrAccessKeyStorageKey = "high-risk-dd-ocr-access-key-v1";
+const ocrEndpoint = "https://1434068878-d6t6nrdesd.ap-guangzhou.tencentscf.com/id-card-ocr";
 
 const paper = {
   width: 794,
@@ -651,6 +655,153 @@ async function saveImageToDevice() {
   triggerDownload(file);
 }
 
+function requestOcrAccessKey() {
+  const savedKey = localStorage.getItem(ocrAccessKeyStorageKey);
+  if (savedKey) return savedKey;
+
+  const input = window.prompt("请输入身份证识别密码");
+  if (!input || !input.trim()) return null;
+
+  const key = input.trim();
+  localStorage.setItem(ocrAccessKeyStorageKey, key);
+  return key;
+}
+
+function loadImageFromFile(file) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const image = new Image();
+    image.onload = () => {
+      URL.revokeObjectURL(url);
+      resolve(image);
+    };
+    image.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error("IMAGE_LOAD_FAILED"));
+    };
+    image.src = url;
+  });
+}
+
+function canvasToJpegBlob(canvasElement, quality) {
+  return new Promise((resolve) => canvasElement.toBlob(resolve, "image/jpeg", quality));
+}
+
+function readBlobAsBase64(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || "").split(",")[1] || "");
+    reader.onerror = () => reject(new Error("IMAGE_READ_FAILED"));
+    reader.readAsDataURL(blob);
+  });
+}
+
+async function prepareIdCardImage(file) {
+  const image = await loadImageFromFile(file);
+  const longestSide = Math.max(image.naturalWidth, image.naturalHeight);
+  const scale = Math.min(1, 1600 / longestSide);
+  const width = Math.max(1, Math.round(image.naturalWidth * scale));
+  const height = Math.max(1, Math.round(image.naturalHeight * scale));
+  const workCanvas = document.createElement("canvas");
+  const workCtx = workCanvas.getContext("2d");
+
+  workCanvas.width = width;
+  workCanvas.height = height;
+  workCtx.fillStyle = "#fff";
+  workCtx.fillRect(0, 0, width, height);
+  workCtx.drawImage(image, 0, 0, width, height);
+
+  let quality = 0.9;
+  let blob = await canvasToJpegBlob(workCanvas, quality);
+  while (blob && blob.size > 2.5 * 1024 * 1024 && quality > 0.55) {
+    quality -= 0.1;
+    blob = await canvasToJpegBlob(workCanvas, quality);
+  }
+
+  if (!blob || blob.size > 2.5 * 1024 * 1024) {
+    throw new Error("IMAGE_TOO_LARGE");
+  }
+
+  return readBlobAsBase64(blob);
+}
+
+function setOcrBusy(isBusy, message) {
+  idCardOcrButton.disabled = isBusy;
+  saveState.textContent = message;
+}
+
+function applyIdCardResult(data) {
+  getField("customerName").value = data.name || "";
+  getField("idNumber").value = data.idNumber || "";
+  getField("gender").value = data.sex === "男" || data.sex === "女" ? data.sex : "";
+  scheduleRender();
+}
+
+async function recognizeIdCard(file) {
+  if (!file) return;
+
+  if (!/^image\/(jpeg|png|bmp)$/i.test(file.type)) {
+    window.alert("请选择 JPG、PNG 或 BMP 格式的身份证照片。");
+    return;
+  }
+
+  const accessKey = requestOcrAccessKey();
+  if (!accessKey) return;
+
+  try {
+    setOcrBusy(true, "正在识别身份证");
+    const imageBase64 = await prepareIdCardImage(file);
+    const response = await fetch(ocrEndpoint, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-OCR-Access-Key": accessKey
+      },
+      body: JSON.stringify({ imageBase64 })
+    });
+    const payload = await response.json().catch(() => ({}));
+
+    if (!response.ok || !payload.ok) {
+      if (response.status === 401) {
+        localStorage.removeItem(ocrAccessKeyStorageKey);
+        throw new Error("ACCESS_KEY_INVALID");
+      }
+      throw new Error(payload.message || "OCR_REQUEST_FAILED");
+    }
+
+    const data = payload.data || {};
+    if (!data.name || !data.idNumber) {
+      throw new Error("OCR_EMPTY_RESULT");
+    }
+
+    const confirmed = window.confirm(
+      `请确认识别结果：\n姓名：${data.name}\n身份证号：${data.idNumber}\n性别：${data.sex || "未识别"}`
+    );
+
+    if (confirmed) {
+      applyIdCardResult(data);
+      if (data.warnings?.length) {
+        window.alert(`已填入客户信息。\n图片提示：${data.warnings.join("、")}`);
+      }
+    }
+
+    saveState.textContent = confirmed ? "已填入" : "已取消填入";
+  } catch (error) {
+    const message = {
+      ACCESS_KEY_INVALID: "识别密码不正确，请重新输入。",
+      IMAGE_TOO_LARGE: "图片过大，请靠近身份证重新拍摄。",
+      IMAGE_LOAD_FAILED: "无法读取这张图片，请重新选择。",
+      IMAGE_READ_FAILED: "图片处理失败，请重新选择。",
+      OCR_EMPTY_RESULT: "未识别出完整的姓名和身份证号，请重新拍摄身份证正面。"
+    }[error.message] || "身份证识别失败，请检查云函数权限和图片后重试。";
+    window.alert(message);
+    saveState.textContent = "识别失败";
+  } finally {
+    idCardImageInput.value = "";
+    idCardOcrButton.disabled = false;
+  }
+}
+
 function showPage(pageName) {
   for (const page of pages) {
     page.classList.toggle("active", page.dataset.page === pageName);
@@ -672,6 +823,8 @@ function showPage(pageName) {
 
 document.getElementById("clearButton").addEventListener("click", clearCustomerData);
 topDownloadButton.addEventListener("click", saveImageToDevice);
+idCardOcrButton.addEventListener("click", () => idCardImageInput.click());
+idCardImageInput.addEventListener("change", () => recognizeIdCard(idCardImageInput.files?.[0]));
 downloadLink.addEventListener("click", (event) => {
   event.preventDefault();
   saveImageToDevice();
