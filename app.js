@@ -547,8 +547,7 @@ function drawTable(d) {
   const supervisorSignY = tableBottom - 105;
   drawText("客户经理签字：", 414, managerSignY + 52, { size: 15 });
   drawManagerSignatureFromPad(525, managerSignY, 168, 92);
-  drawText("主管签字：", 447, supervisorSignY + 44, { size: 15 });
-  drawText(`亲见日期：${formatDate(d.visitDate)}`, 454, tableBottom - 10, { size: 15 });
+  drawText(`亲见日期：${formatDate(d.visitDate)}`, 447, supervisorSignY + 44, { size: 15 });
 }
 
 function drawReport() {
