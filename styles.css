@@ -63,6 +63,10 @@ body {
   gap: 8px;
 }
 
+.topbar-title {
+  min-width: 0;
+}
+
 h1 {
   margin: 0;
   font-size: 20px;
@@ -463,6 +467,115 @@ button:disabled {
   color: var(--accent);
 }
 
+.paste-sheet {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  align-items: end;
+  background: rgba(10, 35, 40, 0.3);
+}
+
+.paste-sheet[hidden] {
+  display: none;
+}
+
+.paste-sheet-panel {
+  width: min(560px, 100%);
+  max-height: min(82vh, 720px);
+  margin: 0 auto;
+  overflow: auto;
+  border-radius: 12px 12px 0 0;
+  background: #fff;
+  box-shadow: 0 -12px 35px rgba(12, 53, 62, 0.18);
+}
+
+.paste-sheet-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 18px 16px 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.paste-sheet-head h2 {
+  margin: 0;
+}
+
+.paste-sheet-close {
+  width: 32px;
+  min-height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 24px;
+  font-weight: 400;
+}
+
+.paste-sheet-body {
+  display: grid;
+  gap: 12px;
+  padding: 14px 16px calc(16px + env(safe-area-inset-bottom));
+}
+
+.paste-sheet-hint {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+#pastedCustomerInfo {
+  min-height: 156px;
+}
+
+.paste-sheet-parse {
+  width: 100%;
+}
+
+.paste-sheet-result {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid #cfe0e2;
+  border-radius: 6px;
+  background: #f5fbfb;
+}
+
+.paste-sheet-result > p {
+  color: var(--accent-deep);
+  font-size: 13px;
+  font-weight: 750;
+}
+
+.paste-sheet-result dl {
+  display: grid;
+  grid-template-columns: 76px minmax(0, 1fr);
+  gap: 8px 10px;
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.paste-sheet-result dt {
+  color: var(--muted);
+}
+
+.paste-sheet-result dd {
+  min-width: 0;
+  margin: 0;
+  font-weight: 650;
+  word-break: break-word;
+}
+
+.paste-sheet-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 10px;
+}
+
 button svg,
 a[download] svg {
   width: 18px;
@@ -535,6 +648,19 @@ a[download] svg {
   .topbar {
     margin-right: -8px;
     margin-left: -8px;
+  }
+
+  h1 {
+    font-size: 18px;
+  }
+
+  .topbar-actions {
+    gap: 5px;
+  }
+
+  .icon-button {
+    width: 38px;
+    min-height: 38px;
   }
 
   .grid.two,
