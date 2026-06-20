@@ -7,6 +7,14 @@ const previewImage = document.getElementById("previewImage");
 const downloadLink = document.getElementById("downloadLink");
 const saveState = document.getElementById("saveState");
 const topDownloadButton = document.getElementById("topDownloadButton");
+const pasteCustomerInfoButton = document.getElementById("pasteCustomerInfoButton");
+const pasteCustomerSheet = document.getElementById("pasteCustomerSheet");
+const closePasteCustomerSheetButton = document.getElementById("closePasteCustomerSheetButton");
+const pastedCustomerInfo = document.getElementById("pastedCustomerInfo");
+const parsePastedCustomerInfoButton = document.getElementById("parsePastedCustomerInfoButton");
+const pastedCustomerResult = document.getElementById("pastedCustomerResult");
+const cancelPastedCustomerInfoButton = document.getElementById("cancelPastedCustomerInfoButton");
+const applyPastedCustomerInfoButton = document.getElementById("applyPastedCustomerInfoButton");
 const idCardOcrButton = document.getElementById("idCardOcrButton");
 const idCardImageInput = document.getElementById("idCardImageInput");
 const signaturePad = document.getElementById("managerSignaturePad");
@@ -53,6 +61,7 @@ let signatureCollapsed = false;
 let isDrawingSignature = false;
 let lastSignaturePoint = null;
 let lastPointerEventAt = 0;
+let parsedCustomerInfo = null;
 
 function todayValue() {
   const now = new Date();
@@ -740,8 +749,8 @@ function applyIdCardResult(data) {
 async function recognizeIdCard(file) {
   if (!file) return;
 
-  if (!/^image\/(jpeg|png|bmp)$/i.test(file.type)) {
-    window.alert("请选择 JPG、PNG 或 BMP 格式的身份证照片。");
+  if (!file.type.startsWith("image/")) {
+    window.alert("请选择身份证图片。");
     return;
   }
 
@@ -766,7 +775,9 @@ async function recognizeIdCard(file) {
         localStorage.removeItem(ocrAccessKeyStorageKey);
         throw new Error("ACCESS_KEY_INVALID");
       }
-      throw new Error(payload.message || "OCR_REQUEST_FAILED");
+      const requestError = new Error(payload.message || "OCR_REQUEST_FAILED");
+      requestError.code = payload.code || "OCR_REQUEST_FAILED";
+      throw requestError;
     }
 
     const data = payload.data || {};
@@ -787,19 +798,82 @@ async function recognizeIdCard(file) {
 
     saveState.textContent = confirmed ? "已填入" : "已取消填入";
   } catch (error) {
+    const code = error.code || error.message;
     const message = {
       ACCESS_KEY_INVALID: "识别密码不正确，请重新输入。",
       IMAGE_TOO_LARGE: "图片过大，请靠近身份证重新拍摄。",
       IMAGE_LOAD_FAILED: "无法读取这张图片，请重新选择。",
       IMAGE_READ_FAILED: "图片处理失败，请重新选择。",
-      OCR_EMPTY_RESULT: "未识别出完整的姓名和身份证号，请重新拍摄身份证正面。"
-    }[error.message] || "身份证识别失败，请检查云函数权限和图片后重试。";
+      OCR_EMPTY_RESULT: "未识别出完整的姓名和身份证号，请让身份证文字横向、清晰完整地重新拍摄。"
+    }[code] || (
+      /UnauthorizedOperation|AuthFailure|InvalidCredential/i.test(code)
+        ? "云函数尚未获得 OCR 调用权限，请稍后重试。"
+        : /ImageBlur|ImageNoText|ImageSize|FailedOperation/i.test(code)
+          ? "图片无法识别。请让身份证上的文字横向、完整且清晰后重新拍摄。"
+          : `身份证识别失败（${code}）。请查看云函数日志。`
+    );
     window.alert(message);
     saveState.textContent = "识别失败";
   } finally {
     idCardImageInput.value = "";
     idCardOcrButton.disabled = false;
   }
+}
+
+function parseCustomerInfoText(text) {
+  const data = { name: "", phone: "", company: "", address: "" };
+
+  for (const rawLine of String(text || "").split(/\r?\n/)) {
+    const match = rawLine.match(/^\s*([^：:]+?)\s*[：:]\s*(.*?)\s*$/);
+    if (!match) continue;
+
+    const label = match[1].replace(/\s/g, "");
+    const value = match[2].trim();
+    if (!value) continue;
+
+    if (/^(申请人姓名|客户姓名|本人姓名)$/.test(label)) {
+      data.name = value;
+    } else if (/^(本人电话|客户电话|手机号码|联系电话)$/.test(label)) {
+      data.phone = value.replace(/\s/g, "");
+    } else if (/^(本人目前工作单位名字|目前工作单位名字|工作单位名字|工作单位|单位名称|公司名称)$/.test(label)) {
+      data.company = value;
+    } else if (/^(目前居住地址|客户居住地址|居住地址|现住址)$/.test(label)) {
+      data.address = value;
+    }
+  }
+
+  return data;
+}
+
+function closePasteCustomerSheet() {
+  pasteCustomerSheet.hidden = true;
+}
+
+function showPastedCustomerResult(data) {
+  document.getElementById("pastedResultName").textContent = data.name || "未识别";
+  document.getElementById("pastedResultPhone").textContent = data.phone || "未识别";
+  document.getElementById("pastedResultCompany").textContent = data.company || "未识别";
+  document.getElementById("pastedResultAddress").textContent = data.address || "未识别";
+  pastedCustomerResult.hidden = false;
+}
+
+function applyParsedCustomerInfo() {
+  if (!parsedCustomerInfo) return;
+
+  if (parsedCustomerInfo.name) getField("customerName").value = parsedCustomerInfo.name;
+  if (parsedCustomerInfo.phone) getField("phone").value = parsedCustomerInfo.phone;
+  if (parsedCustomerInfo.company) {
+    getField("employmentAddress").value = parsedCustomerInfo.company;
+    getField("workUnitSelected").checked = true;
+    getField("selfCompanySelected").checked = false;
+  }
+  if (parsedCustomerInfo.address) getField("homeAddress").value = parsedCustomerInfo.address;
+
+  closePasteCustomerSheet();
+  pastedCustomerInfo.value = "";
+  parsedCustomerInfo = null;
+  pastedCustomerResult.hidden = true;
+  scheduleRender();
 }
 
 function showPage(pageName) {
@@ -823,6 +897,23 @@ function showPage(pageName) {
 
 document.getElementById("clearButton").addEventListener("click", clearCustomerData);
 topDownloadButton.addEventListener("click", saveImageToDevice);
+pasteCustomerInfoButton.addEventListener("click", () => {
+  pastedCustomerInfo.value = "";
+  parsedCustomerInfo = null;
+  pastedCustomerResult.hidden = true;
+  pasteCustomerSheet.hidden = false;
+  setTimeout(() => pastedCustomerInfo.focus(), 80);
+});
+closePasteCustomerSheetButton.addEventListener("click", closePasteCustomerSheet);
+cancelPastedCustomerInfoButton.addEventListener("click", closePasteCustomerSheet);
+pasteCustomerSheet.addEventListener("click", (event) => {
+  if (event.target === pasteCustomerSheet) closePasteCustomerSheet();
+});
+parsePastedCustomerInfoButton.addEventListener("click", () => {
+  parsedCustomerInfo = parseCustomerInfoText(pastedCustomerInfo.value);
+  showPastedCustomerResult(parsedCustomerInfo);
+});
+applyPastedCustomerInfoButton.addEventListener("click", applyParsedCustomerInfo);
 idCardOcrButton.addEventListener("click", () => idCardImageInput.click());
 idCardImageInput.addEventListener("change", () => recognizeIdCard(idCardImageInput.files?.[0]));
 downloadLink.addEventListener("click", (event) => {

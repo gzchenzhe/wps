@@ -11,17 +11,23 @@
   <link rel="manifest" href="./manifest.webmanifest" />
   <link rel="apple-touch-icon" href="./icons/icon-192.png" />
   <link rel="icon" href="./icons/icon.svg" type="image/svg+xml" />
-  <link rel="stylesheet" href="./styles.css?v=13" />
-  <script src="./app.js?v=14" defer></script>
+  <link rel="stylesheet" href="./styles.css?v=14" />
+  <script src="./app.js?v=15" defer></script>
 </head>
 <body>
   <div class="app-shell">
     <header class="topbar">
-      <div>
+      <div class="topbar-title">
         <h1>高风险客户尽调表</h1>
         <p id="saveState">已保存</p>
       </div>
       <div class="topbar-actions">
+        <button class="icon-button" type="button" id="pasteCustomerInfoButton" aria-label="粘贴客户资料" title="粘贴客户资料">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M8 4h8M9 3h6v3H9zM6 7h12a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2Z" />
+            <path d="M8 12h8M8 16h5" />
+          </svg>
+        </button>
         <button class="icon-button" type="button" id="idCardOcrButton" aria-label="识别身份证" title="识别身份证">
           <svg viewBox="0 0 24 24" aria-hidden="true">
             <rect x="3" y="5" width="18" height="14" rx="2" />
@@ -224,6 +230,33 @@
         <span>完成</span>
       </button>
     </nav>
+  </div>
+
+  <div class="paste-sheet" id="pasteCustomerSheet" hidden>
+    <div class="paste-sheet-panel" role="dialog" aria-modal="true" aria-labelledby="pasteCustomerSheetTitle">
+      <div class="paste-sheet-head">
+        <h2 id="pasteCustomerSheetTitle">粘贴客户资料</h2>
+        <button class="paste-sheet-close" type="button" id="closePasteCustomerSheetButton" aria-label="关闭">×</button>
+      </div>
+      <div class="paste-sheet-body">
+        <p class="paste-sheet-hint">仅识别姓名、电话、单位名称和居住地址。</p>
+        <textarea id="pastedCustomerInfo" aria-label="客户资料" placeholder="在这里粘贴客户资料"></textarea>
+        <button class="paste-sheet-parse" type="button" id="parsePastedCustomerInfoButton">识别资料</button>
+        <div class="paste-sheet-result" id="pastedCustomerResult" hidden>
+          <p>请确认识别结果</p>
+          <dl>
+            <dt>客户姓名</dt><dd id="pastedResultName">未识别</dd>
+            <dt>客户电话</dt><dd id="pastedResultPhone">未识别</dd>
+            <dt>单位名称</dt><dd id="pastedResultCompany">未识别</dd>
+            <dt>居住地址</dt><dd id="pastedResultAddress">未识别</dd>
+          </dl>
+          <div class="paste-sheet-actions">
+            <button type="button" class="secondary" id="cancelPastedCustomerInfoButton">取消</button>
+            <button type="button" id="applyPastedCustomerInfoButton">确认填入</button>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 
   <canvas id="reportCanvas" width="1588" height="2246"></canvas>
