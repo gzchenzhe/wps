@@ -11,10 +11,19 @@ const pasteCustomerInfoButton = document.getElementById("pasteCustomerInfoButton
 const pasteCustomerSheet = document.getElementById("pasteCustomerSheet");
 const closePasteCustomerSheetButton = document.getElementById("closePasteCustomerSheetButton");
 const pastedCustomerInfo = document.getElementById("pastedCustomerInfo");
+const pasteCustomerClipboardButton = document.getElementById("pasteCustomerClipboardButton");
 const parsePastedCustomerInfoButton = document.getElementById("parsePastedCustomerInfoButton");
 const pastedCustomerResult = document.getElementById("pastedCustomerResult");
 const cancelPastedCustomerInfoButton = document.getElementById("cancelPastedCustomerInfoButton");
 const applyPastedCustomerInfoButton = document.getElementById("applyPastedCustomerInfoButton");
+const textCleanerButton = document.getElementById("textCleanerButton");
+const textCleanerSheet = document.getElementById("textCleanerSheet");
+const closeTextCleanerSheetButton = document.getElementById("closeTextCleanerSheetButton");
+const textCleanerInput = document.getElementById("textCleanerInput");
+const textCleanerOutput = document.getElementById("textCleanerOutput");
+const textCleanerStatus = document.getElementById("textCleanerStatus");
+const pasteTextCleanerButton = document.getElementById("pasteTextCleanerButton");
+const copyCleanedTextButton = document.getElementById("copyCleanedTextButton");
 const idCardOcrButton = document.getElementById("idCardOcrButton");
 const idCardImageInput = document.getElementById("idCardImageInput");
 const signaturePad = document.getElementById("managerSignaturePad");
@@ -23,7 +32,14 @@ const signatureState = document.getElementById("signatureState");
 const saveSignatureButton = document.getElementById("saveSignatureButton");
 const clearSignatureButton = document.getElementById("clearSignatureButton");
 const signatureToggleButton = document.getElementById("signatureToggleButton");
+const signatureFullscreenButton = document.getElementById("signatureFullscreenButton");
 const signatureBox = document.querySelector(".signature-box");
+const signatureHome = document.getElementById("signatureHome");
+const signatureFullscreenLayer = document.getElementById("signatureFullscreenLayer");
+const signatureLandscapeShell = document.getElementById("signatureLandscapeShell");
+const signatureClearConfirm = document.getElementById("signatureClearConfirm");
+const cancelClearSignatureButton = document.getElementById("cancelClearSignatureButton");
+const confirmClearSignatureButton = document.getElementById("confirmClearSignatureButton");
 const employmentOptions = Array.from(form.querySelectorAll("[data-employment-option]"));
 const dateInputs = Array.from(form.querySelectorAll(".date-picker"));
 const pages = Array.from(document.querySelectorAll(".form-page"));
@@ -62,6 +78,12 @@ let isDrawingSignature = false;
 let lastSignaturePoint = null;
 let lastPointerEventAt = 0;
 let parsedCustomerInfo = null;
+let signatureFullscreen = false;
+
+const removableLoanTextPatterns = [
+  /[（(][ \t]*如有[ \t]*[）)][ \t]*其中[ \t]*[^\r\n]{0,80}?[ \t]*附加费用贷款金额[ \t]*[^\r\n]{0,40}?[ \t]*元[ \t]*[，,][ \t]*年化利率[ \t]*[^\r\n]{0,60}?[ \t]*[，,][ \t]*采用[ \t]*[^\r\n]{0,60}?[ \t]*还款方式[ \t]*[；;]/g,
+  /[（(][ \t]*如有[ \t]*[）)][ \t]*[^\r\n]{0,80}?[ \t]*附加费用贷款[ \t]*[，,][ \t]*用于经销商为本次交易提供的车辆管理及增值服务费用[ \t]*[，,][ \t]*贷款期限[ \t]*[^\r\n]{0,30}?[ \t]*期[ \t]*[，,][ \t]*首期月供[ \t]*[^\r\n]{0,40}?[ \t]*元[ \t]*[，,][ \t]*该笔贷款发放至您购车的车商账户[ \t]*[；;][ \t]*[（(][ \t]*具体以您签署的还款计划表为准[ \t]*[）)]/g
+];
 
 function todayValue() {
   const now = new Date();
@@ -330,6 +352,14 @@ function clearSignatureCanvas() {
 function signaturePoint(event) {
   const source = event.touches?.[0] || event.changedTouches?.[0] || event;
   const rect = signaturePad.getBoundingClientRect();
+
+  if (signatureFullscreenLayer.classList.contains("needs-rotation")) {
+    return {
+      x: (source.clientY - rect.top) * (signaturePad.width / rect.height),
+      y: (rect.right - source.clientX) * (signaturePad.height / rect.width)
+    };
+  }
+
   return {
     x: (source.clientX - rect.left) * (signaturePad.width / rect.width),
     y: (source.clientY - rect.top) * (signaturePad.height / rect.height)
@@ -362,6 +392,113 @@ function setSignatureCollapsed(collapsed) {
   signatureBox.classList.toggle("is-collapsed", signatureCollapsed);
   signatureToggleButton.textContent = signatureCollapsed ? "展开" : "收起";
   signatureToggleButton.setAttribute("aria-expanded", String(!signatureCollapsed));
+}
+
+function currentFullscreenElement() {
+  return document.fullscreenElement || document.webkitFullscreenElement || null;
+}
+
+function updateSignatureLandscapeLayout() {
+  if (!signatureFullscreen) return;
+
+  const viewportWidth = Math.round(window.visualViewport?.width || window.innerWidth);
+  const viewportHeight = Math.round(window.visualViewport?.height || window.innerHeight);
+  const needsRotation = viewportHeight > viewportWidth;
+
+  signatureFullscreenLayer.classList.toggle("needs-rotation", needsRotation);
+  if (needsRotation) {
+    signatureFullscreenLayer.style.setProperty("--signature-landscape-width", `${viewportHeight}px`);
+    signatureFullscreenLayer.style.setProperty("--signature-landscape-height", `${viewportWidth}px`);
+  } else {
+    signatureFullscreenLayer.style.removeProperty("--signature-landscape-width");
+    signatureFullscreenLayer.style.removeProperty("--signature-landscape-height");
+  }
+}
+
+function closeSignatureClearConfirm(restoreFocus = true) {
+  if (signatureClearConfirm.hidden) return;
+  signatureClearConfirm.hidden = true;
+  if (restoreFocus) clearSignatureButton.focus();
+}
+
+function openSignatureClearConfirm() {
+  finishSignature();
+  signatureClearConfirm.hidden = false;
+  setTimeout(() => confirmClearSignatureButton.focus(), 0);
+}
+
+function exitSignatureFullscreen(exitNativeFullscreen = true) {
+  if (!signatureFullscreen) return;
+
+  const fullscreenElement = currentFullscreenElement();
+  signatureFullscreen = false;
+  closeSignatureClearConfirm(false);
+  signatureBox.classList.remove("is-fullscreen");
+  document.body.classList.remove("signature-fullscreen-active");
+  signatureFullscreenButton.setAttribute("aria-pressed", "false");
+  signatureFullscreenButton.querySelector("span").textContent = "横屏全屏";
+  signatureHome.appendChild(signatureBox);
+  signatureFullscreenLayer.hidden = true;
+  signatureFullscreenLayer.setAttribute("aria-hidden", "true");
+  signatureFullscreenLayer.classList.remove("needs-rotation");
+  signatureFullscreenLayer.style.removeProperty("--signature-landscape-width");
+  signatureFullscreenLayer.style.removeProperty("--signature-landscape-height");
+
+  try {
+    screen.orientation?.unlock?.();
+  } catch {
+    // 部分浏览器不允许网页控制屏幕方向，CSS 横屏仍可正常恢复。
+  }
+
+  if (exitNativeFullscreen && fullscreenElement === signatureFullscreenLayer) {
+    const exitFullscreen = document.exitFullscreen || document.webkitExitFullscreen;
+    if (exitFullscreen) Promise.resolve(exitFullscreen.call(document)).catch(() => {});
+  }
+}
+
+function enterSignatureFullscreen() {
+  if (signatureFullscreen) return;
+
+  signatureFullscreen = true;
+  setSignatureCollapsed(false);
+  signatureFullscreenLayer.hidden = false;
+  signatureFullscreenLayer.setAttribute("aria-hidden", "false");
+  signatureLandscapeShell.appendChild(signatureBox);
+  signatureBox.classList.add("is-fullscreen");
+  document.body.classList.add("signature-fullscreen-active");
+  signatureFullscreenButton.setAttribute("aria-pressed", "true");
+  signatureFullscreenButton.querySelector("span").textContent = "恢复原样";
+  updateSignatureLandscapeLayout();
+
+  const requestFullscreen = signatureFullscreenLayer.requestFullscreen || signatureFullscreenLayer.webkitRequestFullscreen;
+  if (!requestFullscreen) return;
+
+  try {
+    Promise.resolve(requestFullscreen.call(signatureFullscreenLayer))
+      .then(() => {
+        const lockResult = screen.orientation?.lock?.("landscape");
+        if (lockResult?.then) {
+          lockResult.then(updateSignatureLandscapeLayout).catch(updateSignatureLandscapeLayout);
+        } else {
+          updateSignatureLandscapeLayout();
+        }
+      })
+      .catch(() => {
+        // 不支持原生全屏时保留 CSS 全屏横屏模式。
+        updateSignatureLandscapeLayout();
+      });
+  } catch {
+    // 同步拒绝全屏时仍使用页面内的横屏层。
+    updateSignatureLandscapeLayout();
+  }
+}
+
+function toggleSignatureFullscreen() {
+  if (signatureFullscreen) {
+    exitSignatureFullscreen();
+  } else {
+    enterSignatureFullscreen();
+  }
 }
 
 function saveManagerSignature() {
@@ -819,6 +956,109 @@ async function recognizeIdCard(file) {
   }
 }
 
+async function pasteClipboardInto(target) {
+  try {
+    if (!navigator.clipboard?.readText) throw new Error("CLIPBOARD_UNAVAILABLE");
+    const clipboardText = await navigator.clipboard.readText();
+    if (!clipboardText) {
+      window.alert("剪贴板中没有可粘贴的文字。");
+      return false;
+    }
+    target.value = clipboardText;
+    target.dispatchEvent(new Event("input", { bubbles: true }));
+    target.focus();
+    return true;
+  } catch {
+    target.focus();
+    let pasted = false;
+    try {
+      pasted = document.execCommand("paste");
+    } catch {
+      pasted = false;
+    }
+    if (pasted) {
+      target.dispatchEvent(new Event("input", { bubbles: true }));
+      return true;
+    }
+    window.alert("浏览器未允许自动读取剪贴板，请长按输入框并选择“粘贴”。");
+    return false;
+  }
+}
+
+async function copyTextToClipboard(text) {
+  if (!text) return false;
+
+  try {
+    if (!navigator.clipboard?.writeText) throw new Error("CLIPBOARD_UNAVAILABLE");
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    const fallback = document.createElement("textarea");
+    fallback.value = text;
+    fallback.setAttribute("readonly", "");
+    fallback.style.position = "fixed";
+    fallback.style.opacity = "0";
+    document.body.appendChild(fallback);
+    fallback.select();
+    let copied = false;
+    try {
+      copied = document.execCommand("copy");
+    } catch {
+      copied = false;
+    }
+    fallback.remove();
+    return copied;
+  }
+}
+
+function cleanLoanText(text) {
+  let removedCount = 0;
+  let cleanedText = String(text || "");
+
+  for (const pattern of removableLoanTextPatterns) {
+    pattern.lastIndex = 0;
+    cleanedText = cleanedText.replace(pattern, () => {
+      removedCount += 1;
+      return "";
+    });
+  }
+
+  return { text: cleanedText, removedCount };
+}
+
+function updateTextCleanerResult() {
+  const sourceText = textCleanerInput.value;
+  if (!sourceText) {
+    textCleanerOutput.value = "";
+    textCleanerStatus.textContent = "";
+    textCleanerStatus.classList.remove("is-success");
+    copyCleanedTextButton.disabled = true;
+    return;
+  }
+
+  const result = cleanLoanText(sourceText);
+  textCleanerOutput.value = result.text;
+  copyCleanedTextButton.disabled = !result.text.trim();
+  textCleanerStatus.classList.toggle("is-success", result.removedCount > 0);
+  textCleanerStatus.textContent = result.removedCount > 0
+    ? `已删除 ${result.removedCount} 处指定文字，可继续手动编辑。`
+    : "未发现完全匹配的指定文字，已保留原文供手动编辑。";
+}
+
+function openTextCleanerSheet() {
+  textCleanerInput.value = "";
+  textCleanerOutput.value = "";
+  textCleanerStatus.textContent = "";
+  textCleanerStatus.classList.remove("is-success");
+  copyCleanedTextButton.disabled = true;
+  textCleanerSheet.hidden = false;
+  setTimeout(() => textCleanerInput.focus(), 80);
+}
+
+function closeTextCleanerSheet() {
+  textCleanerSheet.hidden = true;
+}
+
 function parseCustomerInfoText(text) {
   const data = { name: "", phone: "", company: "", address: "" };
 
@@ -908,11 +1148,33 @@ cancelPastedCustomerInfoButton.addEventListener("click", closePasteCustomerSheet
 pasteCustomerSheet.addEventListener("click", (event) => {
   if (event.target === pasteCustomerSheet) closePasteCustomerSheet();
 });
+pasteCustomerClipboardButton.addEventListener("click", () => pasteClipboardInto(pastedCustomerInfo));
 parsePastedCustomerInfoButton.addEventListener("click", () => {
   parsedCustomerInfo = parseCustomerInfoText(pastedCustomerInfo.value);
   showPastedCustomerResult(parsedCustomerInfo);
 });
 applyPastedCustomerInfoButton.addEventListener("click", applyParsedCustomerInfo);
+textCleanerButton.addEventListener("click", openTextCleanerSheet);
+closeTextCleanerSheetButton.addEventListener("click", closeTextCleanerSheet);
+textCleanerSheet.addEventListener("click", (event) => {
+  if (event.target === textCleanerSheet) closeTextCleanerSheet();
+});
+textCleanerInput.addEventListener("input", updateTextCleanerResult);
+textCleanerOutput.addEventListener("input", () => {
+  copyCleanedTextButton.disabled = !textCleanerOutput.value.trim();
+});
+pasteTextCleanerButton.addEventListener("click", () => pasteClipboardInto(textCleanerInput));
+copyCleanedTextButton.addEventListener("click", async () => {
+  const copied = await copyTextToClipboard(textCleanerOutput.value);
+  if (!copied) {
+    window.alert("复制失败，请长按结果框并选择“复制”。");
+    return;
+  }
+  copyCleanedTextButton.textContent = "已复制";
+  setTimeout(() => {
+    copyCleanedTextButton.textContent = "复制结果";
+  }, 1400);
+});
 idCardOcrButton.addEventListener("click", () => idCardImageInput.click());
 idCardImageInput.addEventListener("change", () => recognizeIdCard(idCardImageInput.files?.[0]));
 downloadLink.addEventListener("click", (event) => {
@@ -996,9 +1258,59 @@ saveSignatureButton.addEventListener("click", saveManagerSignature);
 signatureToggleButton.addEventListener("click", () => {
   setSignatureCollapsed(!signatureCollapsed);
 });
+signatureFullscreenButton.addEventListener("click", toggleSignatureFullscreen);
 
-clearSignatureButton.addEventListener("click", () => {
-  if (!window.confirm("确定清除已保存的手写签名吗？清除后需要重新手写并保存。")) return;
+function handleFullscreenChange() {
+  if (signatureFullscreen && !currentFullscreenElement()) {
+    exitSignatureFullscreen(false);
+  }
+}
+
+function preventPageZoom(event) {
+  event.preventDefault();
+}
+
+document.addEventListener("gesturestart", preventPageZoom, { passive: false });
+document.addEventListener("gesturechange", preventPageZoom, { passive: false });
+document.addEventListener("gestureend", preventPageZoom, { passive: false });
+document.addEventListener("dblclick", preventPageZoom, { passive: false });
+document.addEventListener("touchmove", (event) => {
+  if (event.touches.length > 1) event.preventDefault();
+}, { passive: false });
+document.addEventListener("wheel", (event) => {
+  if (event.ctrlKey) event.preventDefault();
+}, { passive: false });
+document.addEventListener("keydown", (event) => {
+  if (!(event.ctrlKey || event.metaKey)) return;
+  if (["+", "-", "=", "0", "Add", "Subtract"].includes(event.key)) event.preventDefault();
+});
+
+document.addEventListener("fullscreenchange", handleFullscreenChange);
+document.addEventListener("webkitfullscreenchange", handleFullscreenChange);
+window.addEventListener("resize", updateSignatureLandscapeLayout);
+window.addEventListener("orientationchange", updateSignatureLandscapeLayout);
+window.visualViewport?.addEventListener("resize", updateSignatureLandscapeLayout);
+
+document.addEventListener("keydown", (event) => {
+  if (event.key !== "Escape") return;
+  if (!signatureClearConfirm.hidden) {
+    closeSignatureClearConfirm();
+  } else if (!textCleanerSheet.hidden) {
+    closeTextCleanerSheet();
+  } else if (!pasteCustomerSheet.hidden) {
+    closePasteCustomerSheet();
+  } else if (signatureFullscreen) {
+    exitSignatureFullscreen();
+  }
+});
+
+clearSignatureButton.addEventListener("click", openSignatureClearConfirm);
+cancelClearSignatureButton.addEventListener("click", () => closeSignatureClearConfirm());
+signatureClearConfirm.addEventListener("click", (event) => {
+  if (event.target === signatureClearConfirm) closeSignatureClearConfirm();
+});
+confirmClearSignatureButton.addEventListener("click", () => {
+  closeSignatureClearConfirm();
   clearSignatureCanvas();
   localStorage.removeItem(signatureStorageKey);
   hasSavedManagerSignature = false;

@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, viewport-fit=cover" />
   <meta name="theme-color" content="#f7f7f4" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-title" content="尽调表" />
@@ -11,8 +11,8 @@
   <link rel="manifest" href="./manifest.webmanifest" />
   <link rel="apple-touch-icon" href="./icons/icon-192.png" />
   <link rel="icon" href="./icons/icon.svg" type="image/svg+xml" />
-  <link rel="stylesheet" href="./styles.css?v=14" />
-  <script src="./app.js?v=16" defer></script>
+  <link rel="stylesheet" href="./styles.css?v=20" />
+  <script src="./app.js?v=22" defer></script>
 </head>
 <body>
   <div class="app-shell">
@@ -22,6 +22,12 @@
         <p id="saveState">已保存</p>
       </div>
       <div class="topbar-actions">
+        <button class="icon-button" type="button" id="textCleanerButton" aria-label="清理贷款文字" title="清理贷款文字">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M5 4h14M5 9h10M5 14h7" />
+            <path d="m15 14 5 5m0-5-5 5" />
+          </svg>
+        </button>
         <button class="icon-button" type="button" id="pasteCustomerInfoButton" aria-label="粘贴客户资料" title="粘贴客户资料">
           <svg viewBox="0 0 24 24" aria-hidden="true">
             <path d="M8 4h8M9 3h6v3H9zM6 7h12a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2Z" />
@@ -151,7 +157,7 @@
         <div class="form-page" data-page="done">
           <section>
             <h2>手写签字</h2>
-            <div class="grid">
+            <div class="grid" id="signatureHome">
               <div class="signature-box span is-collapsed">
                 <div class="signature-head">
                   <div class="signature-title">
@@ -163,6 +169,12 @@
                 <div class="signature-panel" id="signaturePanel">
                   <canvas id="managerSignaturePad" width="720" height="220" aria-label="手写客户经理签字"></canvas>
                   <div class="signature-actions">
+                    <button type="button" class="secondary signature-fullscreen-button" id="signatureFullscreenButton">
+                      <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M8 3H3v5M16 3h5v5M8 21H3v-5M16 21h5v-5" />
+                      </svg>
+                      <span>横屏全屏</span>
+                    </button>
                     <button type="button" class="secondary" id="saveSignatureButton">
                       <svg viewBox="0 0 24 24" aria-hidden="true">
                         <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2Z" />
@@ -176,6 +188,16 @@
                       </svg>
                       清除签名
                     </button>
+                  </div>
+                </div>
+                <div class="signature-clear-confirm" id="signatureClearConfirm" hidden>
+                  <div class="signature-clear-card" role="dialog" aria-modal="true" aria-labelledby="signatureClearConfirmTitle" aria-describedby="signatureClearConfirmMessage">
+                    <h3 id="signatureClearConfirmTitle">清除签名</h3>
+                    <p id="signatureClearConfirmMessage">确定清除当前手写签名吗？清除后需要重新手写并保存。</p>
+                    <div class="signature-clear-actions">
+                      <button type="button" class="secondary" id="cancelClearSignatureButton">取消</button>
+                      <button type="button" class="danger" id="confirmClearSignatureButton">确认清除</button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -241,7 +263,10 @@
       <div class="paste-sheet-body">
         <p class="paste-sheet-hint">仅识别姓名、电话、单位名称和居住地址。</p>
         <textarea id="pastedCustomerInfo" aria-label="客户资料" placeholder="在这里粘贴客户资料"></textarea>
-        <button class="paste-sheet-parse" type="button" id="parsePastedCustomerInfoButton">识别资料</button>
+        <div class="paste-sheet-primary-actions">
+          <button class="secondary" type="button" id="pasteCustomerClipboardButton">粘贴</button>
+          <button type="button" id="parsePastedCustomerInfoButton">识别资料</button>
+        </div>
         <div class="paste-sheet-result" id="pastedCustomerResult" hidden>
           <p>请确认识别结果</p>
           <dl>
@@ -257,6 +282,33 @@
         </div>
       </div>
     </div>
+  </div>
+
+  <div class="paste-sheet" id="textCleanerSheet" hidden>
+    <div class="paste-sheet-panel" role="dialog" aria-modal="true" aria-labelledby="textCleanerSheetTitle">
+      <div class="paste-sheet-head">
+        <h2 id="textCleanerSheetTitle">清理贷款文字</h2>
+        <button class="paste-sheet-close" type="button" id="closeTextCleanerSheetButton" aria-label="关闭">×</button>
+      </div>
+      <div class="paste-sheet-body">
+        <p class="paste-sheet-hint">粘贴原文后，将自动删除指定的附加费用贷款说明。</p>
+        <label class="text-cleaner-field">
+          <span>原始文字</span>
+          <textarea id="textCleanerInput" placeholder="在这里粘贴需要清理的文字"></textarea>
+        </label>
+        <button class="secondary" type="button" id="pasteTextCleanerButton">粘贴并清理</button>
+        <label class="text-cleaner-field">
+          <span>清理结果（可手动编辑）</span>
+          <textarea id="textCleanerOutput" placeholder="清理后的结果会显示在这里"></textarea>
+        </label>
+        <p class="text-cleaner-status" id="textCleanerStatus" aria-live="polite"></p>
+        <button type="button" id="copyCleanedTextButton" disabled>复制结果</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="signature-fullscreen-layer" id="signatureFullscreenLayer" hidden aria-hidden="true">
+    <div class="signature-landscape-shell" id="signatureLandscapeShell"></div>
   </div>
 
   <canvas id="reportCanvas" width="1588" height="2246"></canvas>

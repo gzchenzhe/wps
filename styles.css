@@ -21,6 +21,10 @@
 html {
   min-height: 100%;
   background: var(--bg);
+  overscroll-behavior-x: none;
+  touch-action: pan-y;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 
 body {
@@ -31,6 +35,7 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
     "Microsoft YaHei", Arial, sans-serif;
   letter-spacing: 0;
+  touch-action: pan-y;
 }
 
 .app-shell {
@@ -167,7 +172,7 @@ textarea {
   background: var(--field);
   color: var(--ink);
   font: inherit;
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 400;
   letter-spacing: 0;
   padding: 9px 11px;
@@ -310,6 +315,7 @@ textarea:focus {
 }
 
 .signature-box {
+  position: relative;
   display: grid;
   gap: 8px;
   user-select: none;
@@ -391,6 +397,132 @@ textarea:focus {
   min-height: 36px;
   padding: 0 12px;
   font-size: 14px;
+}
+
+.signature-fullscreen-button {
+  margin-right: auto;
+}
+
+body.signature-fullscreen-active {
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+.signature-fullscreen-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+  background: #fff;
+}
+
+.signature-fullscreen-layer[hidden] {
+  display: none;
+}
+
+.signature-fullscreen-layer:fullscreen {
+  background: #fff;
+}
+
+.signature-landscape-shell {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #fff;
+}
+
+.signature-fullscreen-layer.needs-rotation .signature-landscape-shell {
+  inset: auto;
+  top: 50%;
+  left: 50%;
+  width: var(--signature-landscape-width, 100vh);
+  height: var(--signature-landscape-height, 100vw);
+  transform: translate(-50%, -50%) rotate(90deg);
+  transform-origin: center;
+}
+
+.signature-box.is-fullscreen {
+  width: 100%;
+  height: 100%;
+  padding: max(12px, env(safe-area-inset-top)) max(14px, env(safe-area-inset-right))
+    max(12px, env(safe-area-inset-bottom)) max(14px, env(safe-area-inset-left));
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.signature-box.is-fullscreen .signature-panel {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.signature-box.is-fullscreen #managerSignaturePad {
+  flex: 1 1 auto;
+  height: auto;
+  min-height: 0;
+}
+
+.signature-box.is-fullscreen .signature-toggle {
+  display: none;
+}
+
+.signature-clear-confirm {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: grid;
+  place-items: center;
+  padding: 14px;
+  border-radius: 6px;
+  background: rgba(10, 35, 40, 0.42);
+}
+
+.signature-clear-confirm[hidden] {
+  display: none;
+}
+
+.signature-clear-card {
+  display: grid;
+  gap: 12px;
+  width: min(420px, 100%);
+  padding: 18px;
+  border: 1px solid #d2dfe1;
+  border-radius: 9px;
+  background: #fff;
+  box-shadow: 0 14px 34px rgba(8, 36, 42, 0.24);
+}
+
+.signature-clear-card h3 {
+  margin: 0;
+  color: var(--accent-deep);
+  font-size: 17px;
+}
+
+.signature-clear-card p {
+  margin: 0;
+  color: #3b5054;
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.signature-clear-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 10px;
+}
+
+button.danger {
+  border-color: var(--danger);
+  background: var(--danger);
+  color: #fff;
 }
 
 body.signing-active,
@@ -531,8 +663,10 @@ button:disabled {
   min-height: 156px;
 }
 
-.paste-sheet-parse {
-  width: 100%;
+.paste-sheet-primary-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 10px;
 }
 
 .paste-sheet-result {
@@ -542,6 +676,10 @@ button:disabled {
   border: 1px solid #cfe0e2;
   border-radius: 6px;
   background: #f5fbfb;
+}
+
+.paste-sheet-result[hidden] {
+  display: none;
 }
 
 .paste-sheet-result > p {
@@ -574,6 +712,33 @@ button:disabled {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 10px;
+}
+
+.text-cleaner-field {
+  gap: 7px;
+  color: var(--accent-deep);
+  font-size: 13px;
+}
+
+#textCleanerInput,
+#textCleanerOutput {
+  min-height: 132px;
+}
+
+#textCleanerOutput {
+  background: #f8fbfb;
+}
+
+.text-cleaner-status {
+  min-height: 18px;
+  margin: -3px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.text-cleaner-status.is-success {
+  color: var(--accent);
 }
 
 button svg,
@@ -651,16 +816,16 @@ a[download] svg {
   }
 
   h1 {
-    font-size: 18px;
+    font-size: 17px;
   }
 
   .topbar-actions {
-    gap: 5px;
+    gap: 4px;
   }
 
   .icon-button {
-    width: 38px;
-    min-height: 38px;
+    width: 36px;
+    min-height: 36px;
   }
 
   .grid.two,
@@ -671,7 +836,7 @@ a[download] svg {
   input,
   select,
   textarea {
-    font-size: 14px;
+    font-size: 16px;
     padding-right: 8px;
     padding-left: 8px;
   }
