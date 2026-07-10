@@ -21,10 +21,20 @@
 html {
   min-height: 100%;
   background: var(--bg);
+  -ms-overflow-style: none;
   overscroll-behavior-x: none;
+  scrollbar-width: none;
   touch-action: pan-y;
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
+}
+
+html::-webkit-scrollbar,
+body::-webkit-scrollbar,
+.paste-sheet-panel::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
 }
 
 body {
@@ -35,6 +45,8 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
     "Microsoft YaHei", Arial, sans-serif;
   letter-spacing: 0;
+  -ms-overflow-style: none;
+  scrollbar-width: none;
   touch-action: pan-y;
 }
 
@@ -617,6 +629,8 @@ button:disabled {
   max-height: min(82vh, 720px);
   margin: 0 auto;
   overflow: auto;
+  -ms-overflow-style: none;
+  scrollbar-width: none;
   border-radius: 12px 12px 0 0;
   background: #fff;
   box-shadow: 0 -12px 35px rgba(12, 53, 62, 0.18);
